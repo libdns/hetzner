@@ -10,7 +10,7 @@ import (
 // Provider implements the libdns interfaces for Hetzner
 type Provider struct {
 	// AuthAPIToken is the Hetzner Auth API token - see https://dns.hetzner.com/api-docs#section/Authentication/Auth-API-Token
-	AuthAPIToken string `json:"auth_api_token,omitempty"`
+	AuthAPIToken string `json:"auth_api_token"`
 }
 
 // GetRecords lists all the records in the zone.
