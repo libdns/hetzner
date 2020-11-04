@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/libdns/libdns"
@@ -124,7 +125,7 @@ func createRecord(ctx context.Context, token string, zone string, r libdns.Recor
 	reqData := record{
 		ZoneID: zoneID,
 		Type:   r.Type,
-		Name:   r.Name,
+		Name:   normalizeRecordName(r.Name, zone),
 		Value:  r.Value,
 		TTL:    int(r.TTL.Seconds()),
 	}
@@ -173,7 +174,7 @@ func updateRecord(ctx context.Context, token string, zone string, r libdns.Recor
 	reqData := record{
 		ZoneID: zoneID,
 		Type:   r.Type,
-		Name:   r.Name,
+		Name:   normalizeRecordName(r.Name, zone),
 		Value:  r.Value,
 		TTL:    int(r.TTL.Seconds()),
 	}
@@ -209,4 +210,12 @@ func createOrUpdateRecord(ctx context.Context, token string, zone string, r libd
 	}
 
 	return updateRecord(ctx, token, zone, r)
+}
+
+func normalizeRecordName(recordName string, zone string) string {
+	// Workaround for https://github.com/caddy-dns/hetzner/issues/3
+	// Can be removed after https://github.com/libdns/libdns/issues/12
+	normalized := unFQDN(recordName)
+	normalized = strings.TrimSuffix(normalized, unFQDN(zone))
+	return unFQDN(normalized)
 }

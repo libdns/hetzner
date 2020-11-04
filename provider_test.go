@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,31 +13,33 @@ import (
 )
 
 var (
-	envToken    = ""
-	envZone     = ""
-	testRecords = []libdns.Record{
-		{
-			Type:  "TXT",
-			Name:  "test1",
-			Value: "test1",
-			TTL:   time.Duration(120 * time.Second),
-		}, {
-			Type:  "TXT",
-			Name:  "test2",
-			Value: "test2",
-			TTL:   time.Duration(120 * time.Second),
-		}, {
-			Type:  "TXT",
-			Name:  "test3",
-			Value: "test3",
-			TTL:   time.Duration(120 * time.Second),
-		},
-	}
+	envToken = ""
+	envZone  = ""
+	ttl      = time.Duration(120 * time.Second)
 )
 
 type testRecordsCleanup = func()
 
 func setupTestRecords(t *testing.T, p *hetzner.Provider) ([]libdns.Record, testRecordsCleanup) {
+	testRecords := []libdns.Record{
+		{
+			Type:  "TXT",
+			Name:  "test1",
+			Value: "test1",
+			TTL:   ttl,
+		}, {
+			Type:  "TXT",
+			Name:  "test2",
+			Value: "test2",
+			TTL:   ttl,
+		}, {
+			Type:  "TXT",
+			Name:  "test3",
+			Value: "test3",
+			TTL:   ttl,
+		},
+	}
+
 	records, err := p.AppendRecords(context.TODO(), envZone, testRecords)
 	if err != nil {
 		t.Fatal(err)
@@ -75,38 +78,82 @@ func Test_AppendRecords(t *testing.T) {
 		AuthAPIToken: envToken,
 	}
 
-	records, err := p.AppendRecords(context.TODO(), envZone, testRecords)
-	if err != nil {
-		t.Fatal(err)
+	testCases := []struct {
+		records  []libdns.Record
+		expected []libdns.Record
+	}{
+		{
+			// multiple records
+			records: []libdns.Record{
+				{Type: "TXT", Name: "test_1", Value: "test_1", TTL: ttl},
+				{Type: "TXT", Name: "test_2", Value: "test_2", TTL: ttl},
+				{Type: "TXT", Name: "test_3", Value: "test_3", TTL: ttl},
+			},
+			expected: []libdns.Record{
+				{Type: "TXT", Name: "test_1", Value: "test_1", TTL: ttl},
+				{Type: "TXT", Name: "test_2", Value: "test_2", TTL: ttl},
+				{Type: "TXT", Name: "test_3", Value: "test_3", TTL: ttl},
+			},
+		},
+		{
+			// relative name
+			records: []libdns.Record{
+				{Type: "TXT", Name: "123.test", Value: "123", TTL: ttl},
+			},
+			expected: []libdns.Record{
+				{Type: "TXT", Name: "123.test", Value: "123", TTL: ttl},
+			},
+		},
+		{
+			// (fqdn) sans trailing dot
+			records: []libdns.Record{
+				{Type: "TXT", Name: fmt.Sprintf("123.test.%s", strings.TrimSuffix(envZone, ".")), Value: "test", TTL: ttl},
+			},
+			expected: []libdns.Record{
+				{Type: "TXT", Name: "123.test", Value: "test", TTL: ttl},
+			},
+		},
+		{
+			// fqdn with trailing dot
+			records: []libdns.Record{
+				{Type: "TXT", Name: fmt.Sprintf("123.test.%s.", strings.TrimSuffix(envZone, ".")), Value: "test", TTL: ttl},
+			},
+			expected: []libdns.Record{
+				{Type: "TXT", Name: "123.test", Value: "test", TTL: ttl},
+			},
+		},
 	}
 
-	if len(testRecords) != len(records) {
-		t.Fatalf("len(testRecords) != len(records) => %d != %d", len(testRecords), len(records))
-	}
+	for _, c := range testCases {
+		func() {
+			result, err := p.AppendRecords(context.TODO(), envZone+".", c.records)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cleanupRecords(t, p, result)
 
-	for i := 0; i < len(records); i++ {
-		if len(records[i].ID) == 0 {
-			t.Fatalf("len(records[%d].ID) == 0", i)
-		}
+			if len(result) != len(c.records) {
+				t.Fatalf("len(resilt) != len(c.records) => %d != %d", len(c.records), len(result))
+			}
 
-		if records[i].Type != testRecords[i].Type {
-			t.Fatalf("records[%d].Type != testRecords[%d].Type => %s != %s", i, i, records[i].Type, testRecords[i].Type)
-		}
-		if records[i].Name != testRecords[i].Name {
-			t.Fatalf("records[%d].Name != testRecords[%d].Name => %s != %s", i, i, records[i].Name, testRecords[i].Name)
-		}
-		if records[i].Value != testRecords[i].Value {
-			t.Fatalf("records[%d].Value != testRecords[%d].Value => %s != %s", i, i, records[i].Value, testRecords[i].Value)
-		}
-		if records[i].TTL != testRecords[i].TTL {
-			t.Fatalf("records[%d].TTL != testRecords[%d].TTL => %v != %v", i, i, records[i].TTL, testRecords[i].TTL)
-		}
-	}
-
-	// cleanup
-	_, err = p.DeleteRecords(context.TODO(), envZone, records)
-	if err != nil {
-		t.Fatal(err)
+			for k, r := range result {
+				if len(result[k].ID) == 0 {
+					t.Fatalf("len(result[%d].ID) == 0", k)
+				}
+				if r.Type != c.expected[k].Type {
+					t.Fatalf("r.Type != c.exptected[%d].Type => %s != %s", k, r.Type, c.expected[k].Type)
+				}
+				if r.Name != c.expected[k].Name {
+					t.Fatalf("r.Name != c.exptected[%d].Name => %s != %s", k, r.Name, c.expected[k].Name)
+				}
+				if r.Value != c.expected[k].Value {
+					t.Fatalf("r.Value != c.exptected[%d].Value => %s != %s", k, r.Value, c.expected[k].Value)
+				}
+				if r.TTL != c.expected[k].TTL {
+					t.Fatalf("r.TTL != c.exptected[%d].TTL => %s != %s", k, r.TTL, c.expected[k].TTL)
+				}
+			}
+		}()
 	}
 }
 
@@ -183,13 +230,13 @@ func Test_SetRecords(t *testing.T) {
 			Type:  "TXT",
 			Name:  "new_test1",
 			Value: "new_test1",
-			TTL:   time.Duration(120 * time.Second),
+			TTL:   ttl,
 		},
 		{
 			Type:  "TXT",
 			Name:  "new_test2",
 			Value: "new_test2",
-			TTL:   time.Duration(120 * time.Second),
+			TTL:   ttl,
 		},
 	}
 
