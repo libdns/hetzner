@@ -1,4 +1,4 @@
-module github.com/libdns/hetzner
+module github.com/fairhat/libdns-vercel
 
 go 1.14
 

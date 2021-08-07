@@ -1,17 +1,14 @@
-# Hetzner DNS for `libdns`
+# Vercel DNS for `libdns`
 
-[![godoc reference](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/libdns/hetzner)
+<!-- [![godoc reference](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/libdns/hetzner) -->
 
 
-This package implements the libdns interfaces for the [Hetzner DNS API](https://dns.hetzner.com/api-docs)
+This package implements the libdns interfaces for the [Vercel DNS API](https://vercel.com/docs/api#endpoints/dns)
 
 ## Authenticating
 
-To authenticate you need to supply a Hetzner [Auth-API-Token](https://dns.hetzner.com/api-docs#section/Authentication/Auth-API-Token).
-
-## Example
-
-Here's a minimal example of how to get all DNS records for zone. See also: [provider_test.go](https://github.com/libdns/hetzner/blob/master/provider_test.go)
+To authenticate you need to supply a Vercel [APIToken](https://vercel.com/docs/api#api-basics/authentication).
+For Testing purposes you can get a Testing Token from your Vercel dashboard.
 
 ```go
 package main
@@ -22,23 +19,23 @@ import (
 	"os"
 	"time"
 
-	"github.com/libdns/libdns/hetzner"
+	"github.com/fairhat/libdns-vercel"
 )
 
 func main() {
-	token := os.Getenv("LIBDNS_HETZNER_TOKEN")
+	token := os.Getenv("LIBDNS_VERCEL_TOKEN")
 	if token == "" {
-		fmt.Printf("LIBDNS_HETZNER_TOKEN not set\n")
+		fmt.Printf("LIBDNS_VERCEL_TOKEN not set\n")
 		return
 	}
 
-	zone := os.Getenv("LIBDNS_HETZNER_ZONE")
+	zone := os.Getenv("LIBDNS_VERCEL_ZONE")
 	if token == "" {
-		fmt.Printf("LIBDNS_HETZNER_ZONE not set\n")
+		fmt.Printf("LIBDNS_VERCEL_ZONE not set\n")
 		return
 	}
 
-	p := &hetzner.Provider{
+	p := &vercel.Provider{
 		AuthAPIToken: token,
 	}
 

@@ -1,4 +1,4 @@
-package hetzner
+package vercel
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"github.com/libdns/libdns"
 )
 
-// Provider implements the libdns interfaces for Hetzner
+// Provider implements the libdns interfaces for Vercel
 type Provider struct {
-	// AuthAPIToken is the Hetzner Auth API token - see https://dns.hetzner.com/api-docs#section/Authentication/Auth-API-Token
+	// AuthAPIToken is the Vercel Authentication Token - see https://vercel.com/docs/api#api-basics/authentication
 	AuthAPIToken string `json:"auth_api_token"`
 }
 
@@ -39,9 +39,9 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 }
 
 // DeleteRecords deletes the records from the zone.
-func (p *Provider) DeleteRecords(ctx context.Context, _ string, records []libdns.Record) ([]libdns.Record, error) {
+func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
 	for _, record := range records {
-		err := deleteRecord(ctx, p.AuthAPIToken, record)
+		err := deleteRecord(ctx, unFQDN(zone), p.AuthAPIToken, record)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 	return setRecords, nil
 }
 
-// unFQDN trims any trailing "." from fqdn. Hetzner's API does not use FQDNs.
+// unFQDN trims any trailing "." from fqdn. Vercel's API does not use FQDNs.
 func unFQDN(fqdn string) string {
 	return strings.TrimSuffix(fqdn, ".")
 }

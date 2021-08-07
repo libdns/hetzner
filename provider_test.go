@@ -1,4 +1,4 @@
-package hetzner_test
+package vercel_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libdns/hetzner"
+	vercel "github.com/fairhat/libdns-vercel"
 	"github.com/libdns/libdns"
 )
 
@@ -20,7 +20,7 @@ var (
 
 type testRecordsCleanup = func()
 
-func setupTestRecords(t *testing.T, p *hetzner.Provider) ([]libdns.Record, testRecordsCleanup) {
+func setupTestRecords(t *testing.T, p *vercel.Provider) ([]libdns.Record, testRecordsCleanup) {
 	testRecords := []libdns.Record{
 		{
 			Type:  "TXT",
@@ -47,26 +47,26 @@ func setupTestRecords(t *testing.T, p *hetzner.Provider) ([]libdns.Record, testR
 	}
 
 	return records, func() {
-		cleanupRecords(t, p, records)
+		cleanupRecords(t, p, envZone, records)
 	}
 }
 
-func cleanupRecords(t *testing.T, p *hetzner.Provider, r []libdns.Record) {
-	_, err := p.DeleteRecords(context.TODO(), envZone, r)
+func cleanupRecords(t *testing.T, p *vercel.Provider, zone string, r []libdns.Record) {
+	_, err := p.DeleteRecords(context.TODO(), zone, r)
 	if err != nil {
 		t.Fatalf("cleanup failed: %v", err)
 	}
 }
 
 func TestMain(m *testing.M) {
-	envToken = os.Getenv("LIBDNS_HETZNER_TEST_TOKEN")
-	envZone = os.Getenv("LIBDNS_HETZNER_TEST_ZONE")
+	envToken = os.Getenv("LIBDNS_VERCEL_TEST_TOKEN")
+	envZone = os.Getenv("LIBDNS_VERCEL_TEST_ZONE")
 
 	if len(envToken) == 0 || len(envZone) == 0 {
-		fmt.Println(`Please notice that this test runs agains the public Hetzner DNS Api, so you sould
+		fmt.Println(`Please notice that this test runs agains the public Vercel DNS Api, so you sould
 never run the test with a zone, used in production.
-To run this test, you have to specify 'LIBDNS_HETZNER_TEST_TOKEN' and 'LIBDNS_HETZNER_TEST_ZONE'.
-Example: "LIBDNS_HETZNER_TEST_TOKEN="123" LIBDNS_HETZNER_TEST_ZONE="my-domain.com" go test ./... -v`)
+To run this test, you have to specify 'LIBDNS_VERCEL_TEST_TOKEN' and 'LIBDNS_VERCEL_TEST_ZONE'.
+Example: "LIBDNS_VERCEL_TEST_TOKEN="123" LIBDNS_VERCEL_TEST_ZONE="my-domain.com" go test ./... -v`)
 		os.Exit(1)
 	}
 
@@ -74,7 +74,7 @@ Example: "LIBDNS_HETZNER_TEST_TOKEN="123" LIBDNS_HETZNER_TEST_ZONE="my-domain.co
 }
 
 func Test_AppendRecords(t *testing.T) {
-	p := &hetzner.Provider{
+	p := &vercel.Provider{
 		AuthAPIToken: envToken,
 	}
 
@@ -130,7 +130,7 @@ func Test_AppendRecords(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer cleanupRecords(t, p, result)
+			defer cleanupRecords(t, p, envZone, result)
 
 			if len(result) != len(c.records) {
 				t.Fatalf("len(resilt) != len(c.records) => %d != %d", len(c.records), len(result))
@@ -149,16 +149,17 @@ func Test_AppendRecords(t *testing.T) {
 				if r.Value != c.expected[k].Value {
 					t.Fatalf("r.Value != c.exptected[%d].Value => %s != %s", k, r.Value, c.expected[k].Value)
 				}
-				if r.TTL != c.expected[k].TTL {
-					t.Fatalf("r.TTL != c.exptected[%d].TTL => %s != %s", k, r.TTL, c.expected[k].TTL)
-				}
+				// cant check for TTL because vercel does not return any ttl values
+				// if r.TTL != c.expected[k].TTL {
+				// 	t.Fatalf("r.TTL != c.exptected[%d].TTL => %s != %s", k, r.TTL, c.expected[k].TTL)
+				// }
 			}
 		}()
 	}
 }
 
 func Test_DeleteRecords(t *testing.T) {
-	p := &hetzner.Provider{
+	p := &vercel.Provider{
 		AuthAPIToken: envToken,
 	}
 
@@ -189,7 +190,7 @@ func Test_DeleteRecords(t *testing.T) {
 }
 
 func Test_GetRecords(t *testing.T) {
-	p := &hetzner.Provider{
+	p := &vercel.Provider{
 		AuthAPIToken: envToken,
 	}
 
@@ -220,7 +221,7 @@ func Test_GetRecords(t *testing.T) {
 }
 
 func Test_SetRecords(t *testing.T) {
-	p := &hetzner.Provider{
+	p := &vercel.Provider{
 		AuthAPIToken: envToken,
 	}
 
@@ -247,7 +248,7 @@ func Test_SetRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanupRecords(t, p, records)
+	defer cleanupRecords(t, p, envZone, records)
 
 	if len(records) != len(allRecords) {
 		t.Fatalf("len(records) != len(allRecords) => %d != %d", len(records), len(allRecords))
