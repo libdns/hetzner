@@ -32,7 +32,8 @@ type updateRecordResponse struct {
 }
 
 type zone struct {
-	ID string `json:"id"`
+	ID  string `json:"id"`
+	TTL int    `json:"ttl"`
 }
 
 type record struct {
@@ -41,7 +42,7 @@ type record struct {
 	Type   string `json:"type"`
 	Name   string `json:"name"`
 	Value  string `json:"value"`
-	TTL    int    `json:"ttl"`
+	TTL    *int   `json:"ttl"`
 }
 
 func doRequest(token string, request *http.Request) ([]byte, error) {
@@ -66,32 +67,32 @@ func doRequest(token string, request *http.Request) ([]byte, error) {
 	return data, nil
 }
 
-func getZoneID(ctx context.Context, token string, zone string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://dns.hetzner.com/api/v1/zones?name=%s", url.QueryEscape(zone)), nil)
+func getZoneData(ctx context.Context, token string, name string) (zone, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://dns.hetzner.com/api/v1/zones?name=%s", url.QueryEscape(name)), nil)
 	data, err := doRequest(token, req)
 	if err != nil {
-		return "", err
+		return zone{}, err
 	}
 
 	result := getAllZonesResponse{}
 	if err := json.Unmarshal(data, &result); err != nil {
-		return "", err
+		return zone{}, err
 	}
 
 	if len(result.Zones) > 1 {
-		return "", errors.New("zone is ambiguous")
+		return zone{}, errors.New("zone is ambiguous")
 	}
 
-	return result.Zones[0].ID, nil
+	return result.Zones[0], nil
 }
 
 func getAllRecords(ctx context.Context, token string, zone string) ([]libdns.Record, error) {
-	zoneID, err := getZoneID(ctx, token, zone)
+	zoneData, err := getZoneData(ctx, token, zone)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://dns.hetzner.com/api/v1/records?zone_id=%s", zoneID), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://dns.hetzner.com/api/v1/records?zone_id=%s", zoneData.ID), nil)
 	data, err := doRequest(token, req)
 	if err != nil {
 		return nil, err
@@ -104,30 +105,35 @@ func getAllRecords(ctx context.Context, token string, zone string) ([]libdns.Rec
 
 	records := []libdns.Record{}
 	for _, r := range result.Records {
-		records = append(records, libdns.Record{
+		rec := libdns.Record{
 			ID:    r.ID,
 			Type:  r.Type,
 			Name:  r.Name,
 			Value: r.Value,
-			TTL:   time.Duration(r.TTL) * time.Second,
-		})
+		}
+		if r.TTL != nil {
+			rec.TTL = time.Duration(*r.TTL) * time.Second
+		} else {
+			rec.TTL = time.Duration(zoneData.TTL) * time.Second
+		}
+		records = append(records, rec)
 	}
 
 	return records, nil
 }
 
 func createRecord(ctx context.Context, token string, zone string, r libdns.Record) (libdns.Record, error) {
-	zoneID, err := getZoneID(ctx, token, zone)
+	zoneData, err := getZoneData(ctx, token, zone)
 	if err != nil {
 		return libdns.Record{}, err
 	}
 
 	reqData := record{
-		ZoneID: zoneID,
+		ZoneID: zoneData.ID,
 		Type:   r.Type,
 		Name:   normalizeRecordName(r.Name, zone),
 		Value:  r.Value,
-		TTL:    int(r.TTL.Seconds()),
+		TTL:    ptr(int(r.TTL.Seconds())),
 	}
 
 	reqBuffer, err := json.Marshal(reqData)
@@ -146,13 +152,18 @@ func createRecord(ctx context.Context, token string, zone string, r libdns.Recor
 		return libdns.Record{}, err
 	}
 
-	return libdns.Record{
+	rec := libdns.Record{
 		ID:    result.Record.ID,
 		Type:  result.Record.Type,
 		Name:  result.Record.Name,
 		Value: result.Record.Value,
-		TTL:   time.Duration(result.Record.TTL) * time.Second,
-	}, nil
+	}
+	if result.Record.TTL != nil {
+		rec.TTL = time.Duration(*result.Record.TTL) * time.Second
+	} else {
+		rec.TTL = time.Duration(zoneData.TTL) * time.Second
+	}
+	return rec, nil
 }
 
 func deleteRecord(ctx context.Context, token string, record libdns.Record) error {
@@ -166,17 +177,17 @@ func deleteRecord(ctx context.Context, token string, record libdns.Record) error
 }
 
 func updateRecord(ctx context.Context, token string, zone string, r libdns.Record) (libdns.Record, error) {
-	zoneID, err := getZoneID(ctx, token, zone)
+	zoneData, err := getZoneData(ctx, token, zone)
 	if err != nil {
 		return libdns.Record{}, err
 	}
 
 	reqData := record{
-		ZoneID: zoneID,
+		ZoneID: zoneData.ID,
 		Type:   r.Type,
 		Name:   normalizeRecordName(r.Name, zone),
 		Value:  r.Value,
-		TTL:    int(r.TTL.Seconds()),
+		TTL:    ptr(int(r.TTL.Seconds())),
 	}
 
 	reqBuffer, err := json.Marshal(reqData)
@@ -195,13 +206,18 @@ func updateRecord(ctx context.Context, token string, zone string, r libdns.Recor
 		return libdns.Record{}, err
 	}
 
-	return libdns.Record{
+	rec := libdns.Record{
 		ID:    result.Record.ID,
 		Type:  result.Record.Type,
 		Name:  result.Record.Name,
 		Value: result.Record.Value,
-		TTL:   time.Duration(result.Record.TTL) * time.Second,
-	}, nil
+	}
+	if result.Record.TTL != nil {
+		rec.TTL = time.Duration(*result.Record.TTL) * time.Second
+	} else {
+		rec.TTL = time.Duration(zoneData.TTL) * time.Second
+	}
+	return rec, nil
 }
 
 func createOrUpdateRecord(ctx context.Context, token string, zone string, r libdns.Record) (libdns.Record, error) {
@@ -218,4 +234,8 @@ func normalizeRecordName(recordName string, zone string) string {
 	normalized := unFQDN(recordName)
 	normalized = strings.TrimSuffix(normalized, unFQDN(zone))
 	return unFQDN(normalized)
+}
+
+func ptr(val int) *int {
+	return &val
 }
