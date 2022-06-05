@@ -105,18 +105,7 @@ func getAllRecords(ctx context.Context, token string, zone string) ([]libdns.Rec
 
 	records := []libdns.Record{}
 	for _, r := range result.Records {
-		rec := libdns.Record{
-			ID:    r.ID,
-			Type:  r.Type,
-			Name:  r.Name,
-			Value: r.Value,
-		}
-		if r.TTL != nil {
-			rec.TTL = time.Duration(*r.TTL) * time.Second
-		} else {
-			rec.TTL = time.Duration(zoneData.TTL) * time.Second
-		}
-		records = append(records, rec)
+		records = append(records, translateRecord(r, zoneData.TTL))
 	}
 
 	return records, nil
@@ -152,18 +141,7 @@ func createRecord(ctx context.Context, token string, zone string, r libdns.Recor
 		return libdns.Record{}, err
 	}
 
-	rec := libdns.Record{
-		ID:    result.Record.ID,
-		Type:  result.Record.Type,
-		Name:  result.Record.Name,
-		Value: result.Record.Value,
-	}
-	if result.Record.TTL != nil {
-		rec.TTL = time.Duration(*result.Record.TTL) * time.Second
-	} else {
-		rec.TTL = time.Duration(zoneData.TTL) * time.Second
-	}
-	return rec, nil
+	return translateRecord(result.Record, zoneData.TTL), nil
 }
 
 func deleteRecord(ctx context.Context, token string, record libdns.Record) error {
@@ -206,18 +184,7 @@ func updateRecord(ctx context.Context, token string, zone string, r libdns.Recor
 		return libdns.Record{}, err
 	}
 
-	rec := libdns.Record{
-		ID:    result.Record.ID,
-		Type:  result.Record.Type,
-		Name:  result.Record.Name,
-		Value: result.Record.Value,
-	}
-	if result.Record.TTL != nil {
-		rec.TTL = time.Duration(*result.Record.TTL) * time.Second
-	} else {
-		rec.TTL = time.Duration(zoneData.TTL) * time.Second
-	}
-	return rec, nil
+	return translateRecord(result.Record, zoneData.TTL), nil
 }
 
 func createOrUpdateRecord(ctx context.Context, token string, zone string, r libdns.Record) (libdns.Record, error) {
@@ -234,6 +201,21 @@ func normalizeRecordName(recordName string, zone string) string {
 	normalized := unFQDN(recordName)
 	normalized = strings.TrimSuffix(normalized, unFQDN(zone))
 	return unFQDN(normalized)
+}
+
+func translateRecord(rec record, defaultTTL int) libdns.Record {
+	ret := libdns.Record{
+		ID:    rec.ID,
+		Type:  rec.Type,
+		Name:  rec.Name,
+		Value: rec.Value,
+	}
+	if rec.TTL != nil {
+		ret.TTL = time.Duration(*rec.TTL) * time.Second
+	} else {
+		ret.TTL = time.Duration(defaultTTL) * time.Second
+	}
+	return ret
 }
 
 func ptr(val int) *int {
