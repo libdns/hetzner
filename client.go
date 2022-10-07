@@ -217,5 +217,8 @@ func normalizeRecordName(recordName string, zone string) string {
 	// Can be removed after https://github.com/libdns/libdns/issues/12
 	normalized := unFQDN(recordName)
 	normalized = strings.TrimSuffix(normalized, unFQDN(zone))
+	if normalized == "" {
+		normalized = "@"
+	}
 	return unFQDN(normalized)
 }
