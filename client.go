@@ -185,6 +185,9 @@ func updateRecord(ctx context.Context, token string, zone string, r libdns.Recor
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("https://dns.hetzner.com/api/v1/records/%s", r.ID), bytes.NewBuffer(reqBuffer))
+	if err != nil {
+		return libdns.Record{}, err
+	}
 	data, err := doRequest(token, req)
 	if err != nil {
 		return libdns.Record{}, err
